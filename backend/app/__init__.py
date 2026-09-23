@@ -1,1 +1,1 @@
-"""HackAlem local meeting-protocol backend."""
+"""SAMRUK KAZYNA local meeting-protocol backend."""
