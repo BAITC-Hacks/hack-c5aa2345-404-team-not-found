@@ -1,4 +1,4 @@
-# Planned dependencies. No package or AI model has been installed at this stage.
+# Planned dependencies; validated versions will be recorded after role-specific setup.
 fastapi>=0.115,<1.0
 uvicorn[standard]>=0.30,<1.0
 pydantic>=2.8,<3.0
@@ -10,4 +10,4 @@ reportlab>=4.0,<5.0
 
 # Planned local-only AI pipeline; install and test later on approved hardware.
 faster-whisper>=1.1,<2.0
-pyannote.audio>=3.3,<4.0
+pyannote.audio>=4.0,<5.0
