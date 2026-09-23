@@ -1,0 +1,4 @@
+-r backend/requirements.txt
+streamlit==1.41.1
+requests==2.32.3
+chardet==5.2.0

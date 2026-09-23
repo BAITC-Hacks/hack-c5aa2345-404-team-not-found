@@ -39,6 +39,9 @@ dist/
 *.tsbuildinfo
 .playwright-mcp/
 final-validation/
+work/
+frontend/data/
+.pytest_cache/
 
 # OS and editor files
 .DS_Store
