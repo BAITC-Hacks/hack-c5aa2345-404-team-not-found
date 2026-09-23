@@ -1,72 +1,103 @@
 # Backend SAMRUK KAZYNA
 
-FastAPI-каркас и отдельные адаптеры локальных моделей. В активные HTTP-маршруты
-адаптеры пока не подключены. Создание встречи возвращает 501 и не обрабатывает запись.
+FastAPI API, SQLite, одна последовательная очередь локальных моделей,
+подготовка mono PCM16 WAV 16 kHz, Whisper → Community-1 → Ollama и DOCX/PDF.
+Native EXE работает с целевым HTTP API. Связка EXE → настоящие маршруты, worker,
+SQLite и экспорт прошла 10/10 проверок с синтетическими моделями. Реальный
+GPU-прогон всей системы на ПК Local AI ещё требуется.
 
-## Быстрый запуск API без моделей
+## Быстрый запуск на готовом компьютере Local AI
 
-Нужен Python 3.11. Из корня репозитория, PowerShell:
+Полная [инструкция](../docs/backend-launch.md) сохраняет существующий venv и
+модели. Ollama уже должна работать. Из корня репозитория:
+
+```powershell
+. .\scripts\local-ai\ai-env.ps1 -VenvPath 'C:\Users\Amankos\Downloads\Hakaton\.venv'
+& $env:HACKALEM_PYTHON -m pip install -r .\backend\requirements-runtime.txt
+& $env:HACKALEM_PYTHON -m pip check
+.\scripts\start-backend.ps1 -VenvPath 'C:\Users\Amankos\Downloads\Hakaton\.venv'
+```
+
+Не переустанавливайте Torch, CUDA и модели. Entrypoint — `app.main:app`, один
+worker, без access logs; остановка — Ctrl+C. Swagger: <http://127.0.0.1:8000/docs>.
+
+## Запуск API на новом компьютере без моделей
+
+Нужен Python 3.11. Из корня репозитория:
 
 ```powershell
 py -3.11 -m venv backend/.venv
-.\backend\.venv\Scripts\python.exe -m pip install -r backend/requirements-api.txt
-.\backend\.venv\Scripts\python.exe -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
+.\backend\.venv\Scripts\python.exe -m pip install -r backend/requirements-runtime.txt
+.\backend\.venv\Scripts\python.exe -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000 --workers 1 --no-access-log
 ```
 
-В Linux/macOS используйте `python3.11` и `backend/.venv/bin/python`.
-После запуска доступен Swagger: <http://127.0.0.1:8000/docs>. Остановка — Ctrl+C.
-Если порт занят, выберите свободный через `--port` и тот же порт в клиенте.
+На Linux/macOS используйте `python3.11` и `backend/.venv/bin/python`.
+Без ресурсов модели не скачиваются автоматически: health будет `not_ready`,
+загрузка — 503. Для серверного окружения следуйте [Local AI README](../docs/local-ai/README.md).
 
-## Фактически реализованные методы
+## Реализованные методы
 
 | Запрос | Результат |
 | --- | --- |
-| `GET /health` | 200, `status=scaffold`, `local_only=true`, `processing_modules` с planned-описаниями |
-| `POST /api/meetings` | 501, строковый `detail` о ненастроенной обработке |
-| `GET /api/meetings` (список) | Не реализован; 405, так как этот путь существует только для POST |
-| Статус встречи, результат, экспорт по ID | Не реализованы; 404 для отсутствующих путей |
+| `GET /health` | `ok` при готовых ресурсах, иначе `not_ready`; `local_only=true`, `processing_modules` |
+| `POST /api/meetings` | multipart `file`/`title`, 202 Meeting со статусом queued |
+| `GET /api/meetings` | история в `items`, SQLite |
+| `GET /api/meetings/{id}` | queued/processing/completed/failed, stage и безопасная ошибка |
+| `GET /api/meetings/{id}/result` | результат после completed, иначе 409 |
+| `GET /api/meetings/{id}/export?format=docx` или `pdf` | серверный протокол, до готовности 409 |
 
 ```powershell
-Invoke-RestMethod http://127.0.0.1:8000/health | ConvertTo-Json -Depth 4
-curl.exe -i -X POST http://127.0.0.1:8000/api/meetings
+Invoke-RestMethod http://127.0.0.1:8000/health | ConvertTo-Json -Depth 6
 ```
 
-501 здесь ожидаем и не является успешной обработкой. Сохранять записи,
-запускать модели или Ollama этот маршрут не будет. [Целевой API](../docs/api-contract.md)
-описывает следующую реализацию, а не уже доступный сервис.
+Health проверяет локальные файлы моделей, пакеты, FFmpeg, шрифт PDF и Ollama.
+Он не загружает модели и не доказывает качество распознавания. При неготовности
+изучите `processing_modules`; демоподмены нет. Поля и ошибки: [API-контракт](../docs/api-contract.md).
 
-## Какой requirements использовать
+## Зависимости
 
 | Файл | Назначение |
 | --- | --- |
-| `requirements-api.txt` | Только каркас FastAPI/Uvicorn/Pydantic; диапазоны версий |
-| `requirements-ai.txt` | Зафиксированные версии адаптеров; Torch и FFmpeg требуют отдельной подготовки |
-| `requirements.txt` | Общий план API/AI/export зависимостей, не проверенный lockfile |
-| Корневой `requirements.txt` | Прежний Streamlit-стек с backend-зависимостями; не нужен native-клиенту |
+| `requirements-runtime.txt` | фиксированные лёгкие API/export зависимости для готового AI-окружения |
+| `requirements-api.txt` | входной файл API-зависимостей текущего backend |
+| `requirements-ai.txt` | фиксированные версии адаптеров; GPU/Torch/FFmpeg готовятся отдельно |
+| `requirements.txt` | общий список; не использовать для массового обновления рабочего AI-окружения |
+| Корневой `requirements.txt` | прежний Streamlit-стек; native EXE его не требует |
 
-Инструкция серверного AI-окружения: [Local AI README](../docs/local-ai/README.md).
-Установка AI-пакетов сама по себе не подключит модели к HTTP API.
+## Настройки, хранение и LAN
 
-## Настройки и LAN
+Конфигурация читается из переменных окружения в `app/core/config.py`;
+`.env.example` показывает имена, сам `.env` автоматически не загружается.
+Приватное хранилище по умолчанию — `%LOCALAPPDATA%/SAMRUK_KAZYNA/meetings`.
+Статусы и история находятся в SQLite, записи/результаты — в UUID-каталогах.
+Прерванные задания после перезапуска получают failed.
 
-Каркас читает значения из `app/core/config.py`. `.env.example` в корне — проект
-будущей конфигурации; автоматического чтения `.env` пока нет. Список расширений
-в Settings также не означает реализованную проверку содержимого загрузки.
+Обычный запуск слушает loopback. Для согласованной LAN передайте
+`-BindAddress <LAN-IP-сервера>` скрипту или `--host <LAN-IP-сервера>` Uvicorn.
+Укажите тот же адрес/порт в EXE. Ollama остаётся на loopback сервера.
+Аутентификация, публичное размещение и роли пользователей ещё не реализованы.
 
-Показанная команда слушает только этот ПК. Для согласованного LAN-демо сервер
-запускают с `--host <LAN-IP-сервера>` вместо `127.0.0.1`, а EXE направляют на
-`http://<LAN-IP-сервера>:8000`. Доступ зависит от сети и настроек хоста.
-Ollama клиенту напрямую не доступен; он должен оставаться на loopback сервера.
-Публичное размещение и аутентификация данным каркасом не реализованы.
+## Проверки
 
-## Что интегрировать дальше
+Из каталога backend:
 
-1. Загрузка с проверкой содержимого и лимита размера, очередь и хранение.
-2. Адаптеры из `app/services/*/local.py`, управление памятью и сопоставление timestamps.
-3. Состояния Meeting, получение Result и ошибки по общему контракту.
-4. Серверный DOCX/PDF и проверка протокола на реальной записи.
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests -p 'test_*.py' -v
+.\.venv\Scripts\python.exe -m unittest discover -s tests/local_ai -v
+```
 
-Прежний `backend/app/agent/` доступен в истории `160d1e0` и не является частью
-активного сервера. Его legacy-тесты в корневом `tests/` требуют отдельной
-актуализации; не используйте их как подтверждение нынешнего backend.
-Команды доступных проверок и границы результатов: [verification.md](../docs/verification.md).
+Из корня после сборки native EXE:
+
+```powershell
+.\backend\.venv\Scripts\python.exe backend/tests/run_native_api_check.py
+```
+
+Подтверждены **22 backend-теста**, **43 автономных AI-теста** и
+**10 native→real API проверок**. В автоматических сценариях модели синтетические;
+маршруты, очередь, SQLite и экспорт настоящие. Реальный GPU-прогон всей
+системы выполняется отдельно по [Local AI handoff](../docs/local-ai/handoff.md).
+
+Прежний `backend/app/agent/` доступен в истории `160d1e0` и не является активным
+сервером. Legacy-тесты корневого `tests/` не использовать для подтверждения
+нового backend. Навигация по проверкам — [verification.md](../docs/verification.md),
+общий статус — [README](../README.md).

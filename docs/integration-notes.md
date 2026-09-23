@@ -8,9 +8,9 @@
 - Local AI включён через `f7176a6`; адаптеры доступны в `services/*/local.py`.
 - Обновление `408d349` добавляет CLI оценки и отчёт полной записи; в main оно
   учтено к `30d2de3`, но активные HTTP-маршруты не меняет.
-- `app/main.py` подключает только текущий `app/api/routes.py`: health и POST-заглушку.
+- Backend 0.2.0 подключает все методы v1, SQLite и один worker `app/pipeline.py`, нормализацию WAV и Local AI. Экспорт — `app/services/export/local.py`.
 
-Наличие всех файлов в одной ветке ещё не означает их соединение в рабочий пайплайн.
+Связка native ApiClient → настоящий FastAPI/worker/SQLite/экспорт прошла 10/10 проверок с синтетическими моделями. Реальный прогон на ПК Local AI ещё требуется; запуск — [backend-launch.md](backend-launch.md).
 
 ## Два клиентских контракта
 
@@ -28,7 +28,7 @@
 [его инструкцию](desktop/README.md), а не корневой Streamlit requirements.
 Эксперимент `desktop/launcher.py`/PyInstaller также не входит в native-сборку.
 
-## Границы, которые нужно соединить
+## Реализованная интеграция и оставшаяся проверка
 
 1. Backend реализует [API v1](api-contract.md), включая очередь/статусы/результаты.
 2. Создаёт экземпляры Local AI по параметрам [handoff](local-ai/handoff.md), явно
@@ -46,8 +46,12 @@
 `exports`), а отдельной серверной схемы Meeting нет. У `start` и `end` есть
 проверка неотрицательности, но отношение `end >= start` пока не проверяется
 серверной Pydantic-схемой. Контракт задаёт целевые требования, клиент проверяет
-ответ независимо. Эти расхождения требуют реализации, а не изменения описания API.
+ответ независимо. HTTP-поля meeting_id/exports добавляет pipeline, Meeting формирует Store. Pipeline проверяет порядок границ и лимит длительности перед экспортом; клиент дополнительно проверяет ответ. Общие модели Local AI сохранены совместимыми.
 
-`tests/test_backend_api.py` ссылается на удалённый `backend.app.agent`.
+Legacy `tests/test_backend_api.py` в корне ссылается на удалённый `backend.app.agent`.
 Общий запуск всех legacy-тестов из корня не является доступной приёмкой нынешнего
 сервера. Используйте разделённые команды из [verification.md](verification.md).
+
+Новые API-тесты находятся в `backend/tests/test_backend_api.py`, алгоритмы —
+`backend/tests/test_pipeline.py`; они запускаются из папки backend. Native-интеграция —
+`backend/tests/run_native_api_check.py` из корня репозитория.
