@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.env
+
+# Runtime data and local models
+/data/
+/models/
+backend/data/
+backend/models/
+
+# Legacy generated artifacts
+node_modules/
+dist/
+*.tsbuildinfo
+.playwright-mcp/
+final-validation/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
