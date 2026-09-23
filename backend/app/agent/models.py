@@ -21,6 +21,7 @@ class Task:
     deadline: str
     description: str
     source_quote: str
+    status: str = "В работе"
 
 @dataclass
 class ProtocolResult:

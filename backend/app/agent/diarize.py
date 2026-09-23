@@ -1,15 +1,27 @@
+"""Offline speaker diarization using an operator-provisioned pipeline."""
+
+import os
 from pathlib import Path
 
+os.environ["HF_HUB_OFFLINE"] = "1"
+os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
+
+
 def diarize(audio_path: Path) -> tuple[list[dict], list[str]]:
+    config = os.getenv("PYANNOTE_PIPELINE_PATH", "")
+    if not config or not Path(config).is_file():
+        return [], ["Диаризация не настроена: укажите локальный YAML в PYANNOTE_PIPELINE_PATH. Идентификация спикеров не выполнена."]
     try:
         from pyannote.audio import Pipeline
-        import os
-        token = os.getenv("HF_TOKEN")
-        if not token:
-            raise RuntimeError("HF_TOKEN не задан")
-        pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization-3.1", use_auth_token=token)
-        diarization = pipeline(str(audio_path))
-        return [{"start": float(turn.start), "end": float(turn.end), "speaker_id": speaker} for turn, _, speaker in diarization.itertracks(yield_label=True)], []
-    except Exception as exc:
-        return [], [f"Диаризация недоступна, применена упрощённая схема: {exc}"]
 
+        # Local config must reference local/cached segmentation and embedding
+        # weights. Offline mode prevents their implicit network download.
+        pipeline = Pipeline.from_pretrained(str(Path(config).resolve()))
+        output = pipeline(str(audio_path))
+        diarization = getattr(output, "speaker_diarization", output)
+        return [
+            {"start": float(turn.start), "end": float(turn.end), "speaker_id": speaker}
+            for turn, _, speaker in diarization.itertracks(yield_label=True)
+        ], []
+    except Exception as exc:
+        return [], [f"Диаризация недоступна; спикеры не идентифицированы: {exc}"]
