@@ -1,0 +1,6 @@
+# API scaffold only: no speech models, PyTorch, or model downloads.
+# Validated exact versions will be recorded in the integration handoff.
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.30,<1.0
+pydantic>=2.8,<3.0
+python-multipart>=0.0.9,<1.0

@@ -1,9 +1,50 @@
-.venv/
+# Python
 __pycache__/
 *.py[cod]
-.pytest_cache/
-backend/data/
-frontend/data/
-work/
+.venv/
 .env
-.streamlit/secrets.toml
+.env.*
+!.env.example
+
+# Runtime data and local models
+/data/
+/models/
+backend/data/
+backend/models/
+
+# Desktop packaged artifacts and signing material
+*.exe
+*.msi
+*.pfx
+*.p12
+/desktop/release/
+/desktop/out/
+/desktop/build/
+**/.streamlit/secrets.toml
+
+# Previous mobile build output (keep local experiments out of Git)
+*.apk
+*.aab
+*.jks
+*.keystore
+.expo/
+.gradle/
+/mobile/android/local.properties
+/mobile/android/build/
+/mobile/android/app/build/
+
+# Legacy generated artifacts
+node_modules/
+dist/
+*.tsbuildinfo
+.playwright-mcp/
+final-validation/
+work/
+frontend/data/
+.pytest_cache/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
