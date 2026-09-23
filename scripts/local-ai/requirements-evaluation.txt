@@ -1,0 +1,2 @@
+# Optional PDF extraction only; not needed by model adapters or unit tests.
+pypdf==6.10.0
