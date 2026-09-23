@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import re
+from dataclasses import dataclass
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -39,7 +40,8 @@ deadline: исходная формулировка срока. Не превр�
 assigned_by: имя автора поручения, только если оно известно из самопредставления. Метка голоса сама по себе не имя.
 Сначала сопоставь метки говорящих с их самопредставлениями. Одно известное имя автора относится ко ВСЕМ его репликам,
 даже если исполнитель поручения не назначен. Не путай автора поручения с исполнителем.
-source_speaker: точная метка говорящего; source_text: точная непрерывная цитата из ОДНОЙ его реплики.
+source_speaker: точная метка говорящего; source_text: одна ПОЛНАЯ исходная реплика без метки говорящего.
+Выбирай source_text дословно из допустимых значений схемы; не исправляй ни буквы, ни пунктуацию.
 Если источник установить нельзя, оба source-поля должны быть пустыми строками. Не выдумывай цитаты.
 Сохраняй имена, казахские слова и технические термины. task можно оставить на языке источника.
 Любая фраза об отсутствии срока означает deadline: null, а не строку с этой фразой.
@@ -61,18 +63,90 @@ def _turns(text: str) -> dict[str, list[str]]:
     return turns
 
 
+@dataclass(frozen=True)
+class _Identity:
+    name: str
+    evidence: str
+
+
+# Deliberately narrow: unquoted self-introduction at the START of a turn.
+# A bare "Я ..." can describe a job/state, so it is not identity evidence here.
+_INTRO = re.compile(
+    r"^(?:меня зовут|мо[её] имя|менің атым|менің есімім|my name is)\s+"
+    r"(?P<name>[^.!?,;:\r\n]+)(?P<end>[.!?,;:]|$)", re.IGNORECASE,
+)
+_REPORTED = re.compile(
+    r"\b(?:сказал[аи]?|сказали|попросил[аи]?|попросили|поручил[аи]?|поручили|"
+    r"цитирую|цитата|по\s+просьбе|со\s+слов|айтты|тапсырды|өтінді|сөзінше|"
+    r"said|asked|according\s+to)\b", re.IGNORECASE,
+)
+_NO_DEADLINE = re.compile(
+    r"(?:\bне\s+(?:указан[аоы]?|назначен[аоы]?|определ[её]н[аоы]?|известен|известна)\b|"
+    r"\bнеизвест(?:ен|на|но)\b|\bбез\s+срока\b|"
+    r"\bмерзім\w*\b[^.!?]*\b(?:жоқ|белгіленбеген|анықталмаған)\b)", re.IGNORECASE,
+)
+
+
+def _speaker_identities(turns: dict[str, list[str]]) -> dict[str, _Identity]:
+    identities = {}
+    for speaker, utterances in turns.items():
+        candidates: dict[str, _Identity] = {}
+        for utterance in utterances:
+            match = _INTRO.match(utterance.strip())
+            if not match:
+                continue
+            name = match.group("name").strip()
+            words = name.split()
+            if not 1 <= len(words) <= 3 or any(
+                not word.istitle() or not re.fullmatch(r"[^\W\d_]+(?:[-’'][^\W\d_]+)*", word)
+                for word in words
+            ):
+                continue
+            candidates[name.casefold()] = _Identity(name, match.group(0))
+        # A reused/incorrect diarization label must never select one name arbitrarily.
+        if len(candidates) == 1:
+            identities[speaker] = next(iter(candidates.values()))
+    return identities
+
+
 def _ground(result: _Analysis, transcript: str) -> None:
     turns = _turns(transcript)
+    identities = _speaker_identities(turns)
     for task in result.tasks:
+        source_turns = [line for line in turns.get(task.source_speaker, [])
+                        if task.source_text and task.source_text in line]
         if not task.source_speaker and not task.source_text:
             log.warning("Local LLM returned a task without a traceable source")
-        elif not task.source_text or not any(task.source_text in line for line in turns.get(task.source_speaker, [])):
+        elif not source_turns:
             raise ValueError("A task citation does not match the attributed speaker")
+        # Ignore the model's guessed author. Bind ONLY a validated source to an
+        # unambiguous self-introduction, independently of whether an assignee exists.
+        # Reported instructions/quoted speech are not necessarily authored by the
+        # current speaker. Abstain instead of promoting that speaker to author.
+        identity = identities.get(task.source_speaker)
+        direct = bool(source_turns) and all(
+            not _REPORTED.search(line) and not any(char in line for char in '\"«»“”')
+            for line in source_turns
+        )
+        task.assigned_by = identity.name if identity and direct else None
         for value in (task.assignee, task.assigned_by):
             if value is not None and (not value.strip() or value.casefold() not in transcript.casefold()):
                 raise ValueError("A returned name is absent from the transcript")
-        if task.deadline is not None and (not task.deadline.strip() or task.deadline.casefold() not in transcript.casefold()):
-            raise ValueError("A returned deadline is not an original transcript phrase")
+        if task.deadline is not None:
+            if not task.deadline.strip() or task.deadline.casefold() not in transcript.casefold():
+                raise ValueError("A returned deadline is not an original transcript phrase")
+            if _NO_DEADLINE.search(task.deadline):
+                task.deadline = None  # An explicit absence statement is not a due date.
+
+
+def _source_schema(transcript: str) -> dict:
+    """Constrain generation to actual sources; validation still checks speaker/quote pairs."""
+    turns = _turns(transcript)
+    schema = _Analysis.model_json_schema()
+    properties = schema["$defs"]["_Task"]["properties"]
+    properties["source_speaker"]["enum"] = ["", *turns]
+    properties["source_text"]["enum"] = list(dict.fromkeys(["", *(line for lines in turns.values() for line in lines)]))
+    return schema
 
 
 class LocalMeetingAnalysisService(MeetingAnalysisService):
@@ -113,7 +187,7 @@ class LocalMeetingAnalysisService(MeetingAnalysisService):
                 for attempt in range(self.retries + 1):
                     response = client.post("/api/chat", json={
                         "model": self.model, "messages": messages, "stream": False, "think": False,
-                        "format": _Analysis.model_json_schema(), "keep_alive": 0,
+                        "format": _source_schema(speaker_transcript), "keep_alive": 0,
                         "options": {"temperature": 0, "num_ctx": self.num_ctx, "num_predict": 1800},
                     })
                     response.raise_for_status()
@@ -126,6 +200,7 @@ class LocalMeetingAnalysisService(MeetingAnalysisService):
                     except (ValidationError, ValueError, KeyError, TypeError) as exc:
                         if attempt == self.retries:
                             raise RuntimeError("Local LLM output failed JSON/source validation") from exc
+                        messages.append({"role": "assistant", "content": data.get("message", {}).get("content", "")})
                         messages.append({"role": "user", "content": "Повтори ответ: строгая JSON-схема, полные поля, только точные цитаты соответствующего говорящего и имена из исходного транскрипта."})
                         continue
                     return answer.summary, [MeetingTask(**item.model_dump()) for item in answer.tasks]

@@ -64,6 +64,7 @@ def local_network_only():
 
 def download(kind, revision=None):
     from huggingface_hub import HfApi, get_token, snapshot_download
+    from huggingface_hub.errors import GatedRepoError
     repo, path = MODELS[kind]
     if kind == "pyannote" and not get_token():
         raise SystemExit("Run scripts/local-ai/hf-login.py locally first; never paste tokens into chat.")
@@ -72,7 +73,14 @@ def download(kind, revision=None):
         "pyannote": "3533c8cf8e369892e6b79ff1bf80f7b0286a54ee",
     }[kind]).sha
     print(f"Downloading {repo}@{revision} to {path}", flush=True)
-    snapshot_download(repo_id=repo, revision=revision, local_dir=path, max_workers=4)
+    try:
+        snapshot_download(repo_id=repo, revision=revision, local_dir=path, max_workers=4)
+    except GatedRepoError:
+        raise SystemExit(
+            "Model access denied. Sign into the SAME Hugging Face account that owns the local token, "
+            f"then accept the access conditions at https://huggingface.co/{repo}. "
+            "Do not paste tokens into chat; rerun this command after access is granted."
+        ) from None
     manifest = {"repository": repo, "revision": revision, "path": str(path)}
     (path / "hackalem-model.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     save(f"download-{kind}", manifest)
