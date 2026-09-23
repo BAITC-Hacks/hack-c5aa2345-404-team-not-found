@@ -1,4 +1,15 @@
-SAMRUK KAZYNA — Windows x64 portable client
+SAMRUK KAZYNA — прежний эксперимент portable Streamlit / Qt
+
+Эта инструкция копируется desktop/package.py в экспериментальный архив с
+каталогом _internal. Такой архив не является основным клиентом проекта;
+его готовность не подтверждается отчётом native-сборки.
+
+Актуальный клиент — C# / Windows Forms. Он собирается командой
+desktop/build-native.ps1 в один desktop/release/SAMRUK-KAZYNA.exe и требует
+системный .NET Framework 4.8+. Каталог _internal ему не нужен.
+Инструкция актуального клиента: docs/desktop/README.md.
+
+Ниже сохранена инструкция только для прежнего архива Python/Qt.
 
 Распакуйте весь архив в обычную папку. Запустите SAMRUK-KAZYNA.exe.
 Папка _internal должна находиться рядом с EXE. Python, Node.js и WebView2

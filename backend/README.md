@@ -1,9 +1,72 @@
-# SAMRUK KAZYNA — backend scaffold
+# Backend SAMRUK KAZYNA
 
-This is a contract-only scaffold for the future on-premise backend. Audio processing, model downloads, Ollama calls, and DOCX/PDF generation are intentionally not implemented or run at this stage.
+FastAPI-каркас и отдельные адаптеры локальных моделей. В активные HTTP-маршруты
+адаптеры пока не подключены. Создание встречи возвращает 501 и не обрабатывает запись.
 
-The future application entrypoint is `app.main:app`. See the root [README](../README.md) and [architecture](../docs/architecture.md).
+## Быстрый запуск API без моделей
 
-The team implements backend, Local AI, and Windows Desktop in parallel. Follow the [role boundaries](../docs/team-workflow.md) and [target HTTP contract](../docs/api-contract.md). Local AI owns concrete `local.py` adapters and its dependency file; Medet integrates those adapters into the server. Model installation on the AI participant's machine is authorized by that participant's task prompt.
+Нужен Python 3.11. Из корня репозитория, PowerShell:
 
-For the current API scaffold, install only `requirements-api.txt` using the commands in the root README. `requirements.txt` includes that API dependency list plus planned AI/export packages; it is not a tested lockfile. The first Windows EXE is a separate client and does not bundle Python or the models.
+```powershell
+py -3.11 -m venv backend/.venv
+.\backend\.venv\Scripts\python.exe -m pip install -r backend/requirements-api.txt
+.\backend\.venv\Scripts\python.exe -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
+```
+
+В Linux/macOS используйте `python3.11` и `backend/.venv/bin/python`.
+После запуска доступен Swagger: <http://127.0.0.1:8000/docs>. Остановка — Ctrl+C.
+Если порт занят, выберите свободный через `--port` и тот же порт в клиенте.
+
+## Фактически реализованные методы
+
+| Запрос | Результат |
+| --- | --- |
+| `GET /health` | 200, `status=scaffold`, `local_only=true`, `processing_modules` с planned-описаниями |
+| `POST /api/meetings` | 501, строковый `detail` о ненастроенной обработке |
+| `GET /api/meetings` (список) | Не реализован; 405, так как этот путь существует только для POST |
+| Статус встречи, результат, экспорт по ID | Не реализованы; 404 для отсутствующих путей |
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/health | ConvertTo-Json -Depth 4
+curl.exe -i -X POST http://127.0.0.1:8000/api/meetings
+```
+
+501 здесь ожидаем и не является успешной обработкой. Сохранять записи,
+запускать модели или Ollama этот маршрут не будет. [Целевой API](../docs/api-contract.md)
+описывает следующую реализацию, а не уже доступный сервис.
+
+## Какой requirements использовать
+
+| Файл | Назначение |
+| --- | --- |
+| `requirements-api.txt` | Только каркас FastAPI/Uvicorn/Pydantic; диапазоны версий |
+| `requirements-ai.txt` | Зафиксированные версии адаптеров; Torch и FFmpeg требуют отдельной подготовки |
+| `requirements.txt` | Общий план API/AI/export зависимостей, не проверенный lockfile |
+| Корневой `requirements.txt` | Прежний Streamlit-стек с backend-зависимостями; не нужен native-клиенту |
+
+Инструкция серверного AI-окружения: [Local AI README](../docs/local-ai/README.md).
+Установка AI-пакетов сама по себе не подключит модели к HTTP API.
+
+## Настройки и LAN
+
+Каркас читает значения из `app/core/config.py`. `.env.example` в корне — проект
+будущей конфигурации; автоматического чтения `.env` пока нет. Список расширений
+в Settings также не означает реализованную проверку содержимого загрузки.
+
+Показанная команда слушает только этот ПК. Для согласованного LAN-демо сервер
+запускают с `--host <LAN-IP-сервера>` вместо `127.0.0.1`, а EXE направляют на
+`http://<LAN-IP-сервера>:8000`. Доступ зависит от сети и настроек хоста.
+Ollama клиенту напрямую не доступен; он должен оставаться на loopback сервера.
+Публичное размещение и аутентификация данным каркасом не реализованы.
+
+## Что интегрировать дальше
+
+1. Загрузка с проверкой содержимого и лимита размера, очередь и хранение.
+2. Адаптеры из `app/services/*/local.py`, управление памятью и сопоставление timestamps.
+3. Состояния Meeting, получение Result и ошибки по общему контракту.
+4. Серверный DOCX/PDF и проверка протокола на реальной записи.
+
+Прежний `backend/app/agent/` доступен в истории `160d1e0` и не является частью
+активного сервера. Его legacy-тесты в корневом `tests/` требуют отдельной
+актуализации; не используйте их как подтверждение нынешнего backend.
+Команды доступных проверок и границы результатов: [verification.md](../docs/verification.md).

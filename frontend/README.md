@@ -62,7 +62,7 @@ py -3.12 -m venv frontend/.venv
 `status=scaffold` и 501 на загрузку. Не выдавайте прежний UI за завершённую
 интеграцию: [сопоставление API](../docs/integration-notes.md).
 
-## Подтверждённые проверки прежнего UI
+## Ранее зафиксированные проверки прежнего UI
 
 ```powershell
 .\frontend\.venv\Scripts\python.exe -m unittest discover -s tests -p test_desktop_settings.py -v
@@ -70,7 +70,14 @@ py -3.12 -m venv frontend/.venv
 .\frontend\.venv\Scripts\python.exe -m unittest discover -s tests -p test_meeting_editor.py -v
 ```
 
-В подготовленном `desktop/.venv` прошли **14/14**: URL, persistence, повреждённый
+По [отчёту Desktop](../docs/desktop/handoff.md) в подготовленном `desktop/.venv`
+прошли **14/14** (7 настроек + 4 состояния UI + 3 редактора): URL, persistence, повреждённый
 JSON, независимость сессий, scaffold/timeout, история, черновики, правки строк,
 источники поручений, PDF/DOCX демо и тема. Использованы синтетические данные и
 HTTP-заглушки. Эти тесты не проверяют native EXE, настоящие модели или живой API.
+
+При обновлении документации эти проверки не запускались. Они отличаются от
+старого набора из коммита `160d1e0`, где семь проверок относились к прежнему backend.
+`tests/test_backend_api.py` всё ещё импортирует удалённый `backend.app.agent`:
+используйте перечисленные точные шаблоны, а не общий discovery всех legacy-тестов.
+Границы результатов: [verification.md](../docs/verification.md).
