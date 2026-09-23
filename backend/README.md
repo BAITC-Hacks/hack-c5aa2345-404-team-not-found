@@ -1,7 +1,9 @@
-# Backend scaffold
+# SAMRUK KAZYNA — backend scaffold
 
 This is a contract-only scaffold for the future on-premise backend. Audio processing, model downloads, Ollama calls, and DOCX/PDF generation are intentionally not implemented or run at this stage.
 
 The future application entrypoint is `app.main:app`. See the root [README](../README.md) and [architecture](../docs/architecture.md).
 
-The team now implements backend, Local AI, and Android in parallel. Follow the [role boundaries](../docs/team-workflow.md) and [target HTTP contract](../docs/api-contract.md). Local AI owns concrete `local.py` adapters and its dependency file; Medet integrates those adapters into the server. `requirements.txt` lists planned dependencies, not a tested lockfile. Model installation on the AI participant's machine is authorized by that participant's task prompt.
+The team implements backend, Local AI, and Windows Desktop in parallel. Follow the [role boundaries](../docs/team-workflow.md) and [target HTTP contract](../docs/api-contract.md). Local AI owns concrete `local.py` adapters and its dependency file; Medet integrates those adapters into the server. Model installation on the AI participant's machine is authorized by that participant's task prompt.
+
+For the current API scaffold, install only `requirements-api.txt` using the commands in the root README. `requirements.txt` includes that API dependency list plus planned AI/export packages; it is not a tested lockfile. The first Windows EXE is a separate client and does not bundle Python or the models.

@@ -12,7 +12,17 @@ __pycache__/
 backend/data/
 backend/models/
 
-# Android local build output and signing material
+# Desktop packaged artifacts and signing material
+*.exe
+*.msi
+*.pfx
+*.p12
+/desktop/release/
+/desktop/out/
+/desktop/build/
+**/.streamlit/secrets.toml
+
+# Previous mobile build output (keep local experiments out of Git)
 *.apk
 *.aab
 *.jks
