@@ -1,4 +1,4 @@
-"""Streamlit entry point for Meeting Desk."""
+"""Streamlit entry point for SAMRUK KAZYNA."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ from frontend.components.meeting import render_new_meeting
 from frontend.components.sidebar import render_sidebar
 
 st.set_page_config(
-    page_title="Meeting Desk — автопротоколирование",
+    page_title="SAMRUK KAZYNA — автопротоколирование",
     page_icon="📝",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -41,10 +41,18 @@ def backend_status() -> bool:
     if now - checked_at > 4:
         try:
             health = api_client.health()
-            st.session_state["backend_online"] = health.get("status") == "ok"
-            st.session_state["backend_error"] = None
+            status = health.get("status")
+            st.session_state["backend_online"] = status == "ok"
+            st.session_state["backend_health_status"] = status
+            st.session_state["backend_error"] = (
+                None if status == "ok" else
+                "Backend доступен, но пока работает как каркас (scaffold). Обработка записей ещё не подключена."
+                if status == "scaffold" else
+                "Backend доступен, но не подтвердил готовность обработки."
+            )
         except (api_client.ApiUnavailable, api_client.ApiError, api_client.ApiTimeout) as exc:
             st.session_state["backend_online"] = False
+            st.session_state["backend_health_status"] = None
             st.session_state["backend_error"] = str(exc)
         st.session_state["backend_checked_at"] = now
     return bool(st.session_state.get("backend_online", False))

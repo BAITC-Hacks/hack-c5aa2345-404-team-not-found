@@ -1,0 +1,5 @@
+# UI only; do not install backend AI/model dependencies when packaging the client.
+streamlit==1.41.1
+requests==2.32.3
+python-docx==1.2.0
+reportlab>=4.0,<5.0
