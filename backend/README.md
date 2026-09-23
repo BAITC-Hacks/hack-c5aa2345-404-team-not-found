@@ -1,9 +1,31 @@
-# SAMRUK KAZYNA — backend scaffold
+# SAMRUK KAZYNA — backend
 
-This is a contract-only scaffold for the future on-premise backend. Audio processing, model downloads, Ollama calls, and DOCX/PDF generation are intentionally not implemented or run at this stage.
+FastAPI API, SQLite, одна последовательная очередь локальных моделей, подготовка WAV,
+Whisper → Community-1 → Ollama и экспорт DOCX/PDF. Клиент — отдельный native Windows EXE.
 
-The future application entrypoint is `app.main:app`. See the root [README](../README.md) and [architecture](../docs/architecture.md).
+Запуск на готовом компьютере Local AI: [инструкция](../docs/backend-launch.md).
+Установить только `requirements-runtime.txt` в существующее AI-окружение;
+модели и CUDA повторно не устанавливать. Entrypoint: `app.main:app`, один worker.
+`.env` автоматически не читается, конфигурация задаётся переменными окружения.
 
-The team implements backend, Local AI, and Windows Desktop in parallel. Follow the [role boundaries](../docs/team-workflow.md) and [target HTTP contract](../docs/api-contract.md). Local AI owns concrete `local.py` adapters and its dependency file; Medet integrates those adapters into the server. Model installation on the AI participant's machine is authorized by that participant's task prompt.
+Приватное хранилище по умолчанию: `%LOCALAPPDATA%/SAMRUK_KAZYNA/meetings`.
+Статусы и история — SQLite, запись и результаты — отдельные UUID-каталоги.
+Health `ok` проверяет наличие ресурсов и локальную Ollama, но не запускает inference.
+Без ресурсов health `not_ready`, загрузка возвращает 503 без демоподмены.
 
-For the current API scaffold, install only `requirements-api.txt` using the commands in the root README. `requirements.txt` includes that API dependency list plus planned AI/export packages; it is not a tested lockfile. The first Windows EXE is a separate client and does not bundle Python or the models.
+Проверки из папки backend:
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests -p 'test_*.py' -v
+.\.venv\Scripts\python.exe -m unittest discover -s tests/local_ai -v
+```
+
+Из корня репозитория, после сборки EXE:
+
+```powershell
+.\backend\.venv\Scripts\python.exe backend/tests/run_native_api_check.py
+```
+
+Тесты используют синтетические модели; настоящий GPU-прогон всего приложения
+проводится на ПК Local AI. Контракт и ограничения: [API](../docs/api-contract.md),
+[README](../README.md), [Local AI handoff](../docs/local-ai/handoff.md).
